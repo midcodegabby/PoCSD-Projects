@@ -44,11 +44,26 @@ class DiskBlocks():
             # commenting this out as the request now goes to the server
             # self.block[block_number] = putdata
             # call Put() method on the server; code currently quits on any server failure
-            ret = self.block_server.Put(block_number, putdata)
+            # ret = self.block_server.Put(block_number, putdata)
+            
+            # loop for 2 tries: 
+            for i in range(2): 
+                # implement try/except stuff for at-least-once semantics
+                try:
+                    ret = self.block_server.Put(block_number, putdata)
+                
+                # exception handling for the 5 second socket timout exception:
+                except socket.timeout:
+                    print("SERVER_TIMED_OUT") #print error message
+                    time.sleep(fsconfig.RETRY_INTERVAL) # sleep for RETRY_INTERVAL (10s)
+
+                # handle the case where no timeout occurs:
+                else:
+                    return 0
+
             if ret == -1:
                 logging.error('Put: Server returns error')
                 quit()
-            return 0
         else:
             logging.error('Put: Block out of range: ' + str(block_number))
             quit()
@@ -65,9 +80,22 @@ class DiskBlocks():
             # commenting this out as the request now goes to the server
             # return self.block[block_number]
             # call Get() method on the server
-            data = self.block_server.Get(block_number)
-            # return as bytearray
-            return bytearray(data)
+            # data = self.block_server.Get(block_number)
+
+            # loop for 2 tries: 
+            for i in range(2): 
+                # implement try/except stuff for at-least-once semantics
+                try:
+                    data = self.block_server.Get(block_number)
+                
+                # exception handling for the 5 second socket timout exception:
+                except socket.timeout:
+                    print("SERVER_TIMED_OUT") #print error message
+                    time.sleep(fsconfig.RETRY_INTERVAL) # sleep for RETRY_INTERVAL (10s)
+                
+                # handle the case where no timeout occurs:
+                else:
+                    return bytearray(data)
 
         logging.error('DiskBlocks::Get: Block number larger than TOTAL_NUM_BLOCKS: ' + str(block_number))
         quit()
