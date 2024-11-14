@@ -276,4 +276,156 @@ class FileOperations():
         return read_data, "SUCCESS"
 
 
+    ## Skeleton functions - you'll implement these in HW#2
+
+#   def Slice(self, file_inode_number, offset, count):
+#       logging.debug("FileOperations::Slice: file_inode_number: " + str(file_inode_number) + ", offset: " + str(offset) + ", count: " + str(count))
+#        return -1, "Not implemented"
+
+#    def Mirror(self, file_inode_number):
+#        logging.debug("FileOperations::Mirror: file_inode_number: " + str(file_inode_number))
+#        return -1, "Not implemented"
+
+#    def Unlink(self, dir, name):
+#        logging.debug("FileOperations::Unlink: dir: " + str(dir) + ", name: " + str(name))
+#        return -1, "Not implemented"
+
+# BEGIN_REMOVE_TO_DISTRIBUTE
+    def Slice(self, file_inode_number, offset, count):
+        logging.debug("FileOperations::Slice: file_inode_number: " + str(file_inode_number) + ", offset: " + str(offset) + ", count: " + str(count))
+        file_inode = InodeNumber(file_inode_number)
+        file_inode.InodeNumberToInode(self.FileNameObject.RawBlocks)
+        if offset > file_inode.inode.size:
+            logging.debug("ERROR_SLICE_OFFSET_OUT_BOUNDS " + str(offset))
+            return -1, "ERROR_SLICE_OFFSET_OUT_BOUNDS"
+        if (offset+count) > file_inode.inode.size:
+            logging.debug("ERROR_SLICE_COUNT_OUT_BOUNDS " + str(count+offset))
+            return -1, "ERROR_SLICE_COUNT_OUT_BOUNDS"
+        block_slice, status = self.Read(file_inode_number, offset, count)
+        if status == -1:
+            logging.debug("ERROR_SLICE_READ_ERROR")
+            return -1, "ERROR_SLICE_READ_ERROR"
+        bytes_written, message = self.Write(file_inode_number, 0, block_slice)
+        return bytes_written, message
+
+    def Mirror(self, file_inode_number):
+        logging.debug("FileOperations::Mirror: file_inode_number: " + str(file_inode_number))
+        file_inode = InodeNumber(file_inode_number)
+        file_inode.InodeNumberToInode(self.FileNameObject.RawBlocks)
+        block_original, status = self.Read(file_inode_number, 0, file_inode.inode.size)
+        if status == -1:
+            logging.debug("ERROR_MIRROR_READ_ERROR")
+            return -1, "ERROR_MIRROR_READ_ERROR"
+        block_mirrored = bytearray(file_inode.inode.size)
+        for i in range(0,file_inode.inode.size):
+            block_mirrored[file_inode.inode.size-i-1] = block_original[i]
+        bytes_written, message = self.Write(file_inode_number, 0, block_mirrored)
+        return bytes_written, message
+
+
+## Unlink a file
+## dir is the inode number of current working directory
+## name is the file's name
+
+    def Unlink(self, dir, name):
+
+        logging.debug ("FileOperations::Unlink: dir: " + str(dir) + ", name: " + str(name))
+
+        # Obtain dir_inode_number_inode, ensure it is a directory
+        dir_inode = InodeNumber(dir)
+        dir_inode.InodeNumberToInode(self.FileNameObject.RawBlocks)
+        if dir_inode.inode.type != fsconfig.INODE_TYPE_DIR:
+          logging.debug ("ERROR_UNLINK_INVALID_DIR " + str(dir))
+          return -1, "ERROR_UNLINK_INVALID_DIR"
+
+        # Ensure file exists - if Lookup returns -1 it does not exist
+        file_inode = self.FileNameObject.Lookup(name, dir)
+        if file_inode == -1:
+          logging.debug ("ERROR_UNLINK_DOESNOT_EXIST " + str(name))
+          return -1, "ERROR_UNLINK_DOESNOT_EXIST"
+
+        # Ensure it is a regular file
+        file = InodeNumber(file_inode)
+        file.InodeNumberToInode(self.FileNameObject.RawBlocks)
+        if file.inode.type != fsconfig.INODE_TYPE_FILE:
+          logging.debug ("ERROR_UNLINK_NOT_FILE " + str(name))
+          return -1, "ERROR_UNLINK_NOT_FILE"
+
+        # Step 1: Remove binding of inode in directory
+        # We need to search all directory entries until we find a match with inode number
+
+        block_index = 0
+        # create a temporary directory table, large enough to hold the number of blocks for this directory
+        tempdirtable = bytearray((dir_inode.inode.size // fsconfig.BLOCK_SIZE) * fsconfig.BLOCK_SIZE)
+        # Scan through all possible blocks in the directory and Get() from raw blocks to build this table
+        while block_index <= (dir_inode.inode.size // fsconfig.BLOCK_SIZE):
+          # Read block from disk
+          tempdirtable[block_index*fsconfig.BLOCK_SIZE:block_index*fsconfig.BLOCK_SIZE+fsconfig.BLOCK_SIZE-1] = self.FileNameObject.RawBlocks.Get(dir_inode.inode.block_numbers[block_index])
+          block_index += 1
+        logging.debug("FileOperations::Unlink: tempdirtable: " + str(tempdirtable.hex()))
+        # pad the filename with zeroes for comparison
+        padded_filename = bytearray(name, "utf-8")
+        padded_filename = bytearray(padded_filename.ljust(fsconfig.MAX_FILENAME, b'\x00'))
+        # bounds for searching for a match
+        current_position = 0
+        end_position = dir_inode.inode.size * fsconfig.FILE_NAME_DIRENTRY_SIZE
+        # Now scan within the block
+        while current_position < end_position:
+          # Retrieve bytearray slice with name for this binding
+          entryname = tempdirtable[current_position:current_position+fsconfig.MAX_FILENAME]
+          entryname_padded = bytearray(entryname.ljust(fsconfig.MAX_FILENAME,b'\x00'))
+          if entryname_padded == padded_filename:
+            logging.debug("FileOperations::Unlink: found a match " + str(padded_filename))
+            # found the entry to be removed - inode matches
+            break
+          else:
+            current_position += fsconfig.FILE_NAME_DIRENTRY_SIZE
+        # we'll now shift entries through the end of the directory list here
+        while current_position < end_position:
+          tempdirtable[current_position:current_position+fsconfig.FILE_NAME_DIRENTRY_SIZE] = tempdirtable[current_position+fsconfig.FILE_NAME_DIRENTRY_SIZE:current_position + 2*fsconfig.FILE_NAME_DIRENTRY_SIZE]
+          current_position += fsconfig.FILE_NAME_DIRENTRY_SIZE
+        # now we save directory table blocks back to disk
+        block_index = 0
+        while block_index <= (dir_inode.inode.size // fsconfig.BLOCK_SIZE):
+          logging.debug("FileOperations::Unlink: writing back block_index " + str(block_index))
+          self.FileNameObject.RawBlocks.Put(dir_inode.inode.block_numbers[block_index],tempdirtable[block_index*fsconfig.BLOCK_SIZE:block_index*fsconfig.BLOCK_SIZE+fsconfig.BLOCK_SIZE])
+          block_index += 1
+        # now update size and refcnt of directory inode and commit back to rawblocks
+        logging.debug("FileOperations::Unlink: updating dir_inode")
+        dir_inode.inode.size = dir_inode.inode.size - fsconfig.FILE_NAME_DIRENTRY_SIZE
+        dir_inode.inode.refcnt -= 1
+        dir_inode.StoreInode(self.FileNameObject.RawBlocks)
+
+        # Step 2: decrement refcnt of file being unlinked
+        file.inode.refcnt -= 1
+        file.StoreInode(self.FileNameObject.RawBlocks)
+
+        # Step 3: if it's the last binding (refcnt==0), Free data block resources, then free inode
+        if file.inode.refcnt == 0:
+          logging.debug ("FileOperations::Unlink: last reference; freeing data blocks and inode")
+
+          # Free data blocks one by one by marking them as FREE (0) in the free bitmap
+          # Scan all blocks in inode
+          for i in range(0,fsconfig.MAX_INODE_BLOCK_NUMBERS):
+            block_number = file.inode.block_numbers[i]
+            # if the block is allocated i.e. != 0, free it up in bitmap
+            if block_number != 0:
+              # print ("TBD: free block " + str(block_number))
+              # index bitmap block
+              bitmap_block = fsconfig.FREEBITMAP_BLOCK_OFFSET + (block_number // fsconfig.BLOCK_SIZE)
+              # retrieve bitmap from disk
+              block = self.FileNameObject.RawBlocks.Get(bitmap_block)
+              # Update bitmap entry for block_number to be 0 (free)
+              block[block_number % fsconfig.BLOCK_SIZE] = 0
+              # Write back to disk
+              self.FileNameObject.RawBlocks.Put(bitmap_block,block)
+
+          # Free inode
+          # Create new inode that is blank i.e. invalid for this inode number
+          new_blank_inode = InodeNumber(file_inode)
+          # store blank inode to disk
+          new_blank_inode.StoreInode(self.FileNameObject.RawBlocks)
+
+        return 0, "SUCCESS"
+# END_REMOVE_TO_DISTRIBUTE
 

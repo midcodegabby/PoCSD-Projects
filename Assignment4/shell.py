@@ -32,6 +32,8 @@ class FSShell():
         except ValueError:
             print('Error: ' + i + ' not a valid Integer')
             return -1
+        
+        self.RawBlocks.Acquire()
 
         if i < 0 or i >= fsconfig.MAX_NUM_INODES:
             print('Error: inode number ' + str(i) + ' not in valid range [0, ' + str(fsconfig.MAX_NUM_INODES - 1) + ']')
@@ -40,6 +42,9 @@ class FSShell():
         inobj.InodeNumberToInode(self.RawBlocks)
         inode = inobj.inode
         inode.Print()
+
+        self.RawBlocks.Release()
+
         return 0
 
     # implements load (load the specified dump file)
@@ -63,12 +68,18 @@ class FSShell():
         except ValueError:
             print('Error: ' + n + ' not a valid Integer')
             return -1
+        
+        self.RawBlocks.Acquire()
+
         if n < 0 or n >= fsconfig.TOTAL_NUM_BLOCKS:
             print('Error: block number ' + str(n) + ' not in valid range [0, ' + str(fsconfig.TOTAL_NUM_BLOCKS - 1) + ']')
             return -1
         print('Block (showing any string snippets in block the block) [' + str(n) + '] : \n' + str(
             (self.RawBlocks.Get(n).decode(encoding='UTF-8', errors='ignore'))))
         print('Block (showing raw hex data in block) [' + str(n) + '] : \n' + str((self.RawBlocks.Get(n).hex())))
+        
+        self.RawBlocks.Release()
+
         return 0
 
     # implements showblockslice (log slice of block n contents)
@@ -89,6 +100,8 @@ class FSShell():
             print('Error: ' + end + ' not a valid Integer')
             return -1
 
+        self.RawBlocks.Acquire()
+
         if n < 0 or n >= fsconfig.TOTAL_NUM_BLOCKS:
             print('Error: block number ' + str(n) + ' not in valid range [0, ' + str(fsconfig.TOTAL_NUM_BLOCKS - 1) + ']')
             return -1
@@ -101,12 +114,18 @@ class FSShell():
 
         wholeblock = self.RawBlocks.Get(n)
         print('Block (raw hex block) [' + str(n) + '] : \n' + str((wholeblock[start:end + 1].hex())))
+
+        self.RawBlocks.Release()
+
         return 0
 
     # file operations
     # implements cd (change directory)
     def cd(self, dir):
-        i = self.AbsolutePathObject.PathNameToInodeNumber(dir, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.GeneralPathToInodeNumber(dir, self.cwd)
         if i == -1:
             print("Error: not found\n")
             return -1
@@ -116,9 +135,14 @@ class FSShell():
             print("Error: not a directory\n")
             return -1
         self.cwd = i
+    
+        self.RawBlocks.Release()
 
     # implements ls (lists files in directory)
     def ls(self):
+
+        self.RawBlocks.Acquire()
+
         inobj = InodeNumber(self.cwd)
         inobj.InodeNumberToInode(self.RawBlocks)
         block_index = 0
@@ -147,11 +171,17 @@ class FSShell():
                         print("[" + str(inobj2.inode.refcnt) + "]:" + entryname.decode())
                 current_position += fsconfig.FILE_NAME_DIRENTRY_SIZE
             block_index += 1
+
+        self.RawBlocks.Release()
+
         return 0
 
     # implements cat (print file contents)
     def cat(self, filename):
-        i = self.AbsolutePathObject.PathNameToInodeNumber(filename, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
             return -1
@@ -165,27 +195,45 @@ class FSShell():
             print("Error: " + errorcode)
             return -1
         print(data.decode())
+
+        self.RawBlocks.Release()
+
         return 0
 
     # implements mkdir
     def mkdir(self, dir):
+
+        self.RawBlocks.Acquire()
+
         i, errorcode = self.FileOperationsObject.Create(self.cwd, dir, fsconfig.INODE_TYPE_DIR)
         if i == -1:
             print("Error: " + errorcode + "\n")
             return -1
+        
+        self.RawBlocks.Release()
+
         return 0
 
     # implements create
     def create(self, file):
+
+        self.RawBlocks.Acquire()
+
         i, errorcode = self.FileOperationsObject.Create(self.cwd, file, fsconfig.INODE_TYPE_FILE)
         if i == -1:
             print("Error: " + errorcode + "\n")
             return -1
+        
+        self.RawBlocks.Release()
+
         return 0
 
     # implements append
     def append(self, filename, string):
-        i = self.AbsolutePathObject.PathNameToInodeNumber(filename, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
             return -1
@@ -199,6 +247,9 @@ class FSShell():
             print("Error: " + errorcode)
             return -1
         print("Successfully appended " + str(written) + " bytes.")
+
+        self.RawBlocks.Release()
+
         return 0
 
     # implements slice filename offset count ("slice off" contents from a file starting from offset and for count bytes)
@@ -213,7 +264,10 @@ class FSShell():
         except ValueError:
             print('Error: ' + count + ' not a valid Integer')
             return -1
-        i = self.AbsolutePathObject.PathNameToInodeNumber(filename, self.cwd)
+        
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
             return -1
@@ -226,11 +280,17 @@ class FSShell():
         if data == -1:
             print("Error: " + errorcode)
             return -1
+        
+        self.RawBlocks.Release()
+
         return 0
 
     # implements mirror filename (mirror the contents of a file)
     def mirror(self, filename):
-        i = self.AbsolutePathObject.PathNameToInodeNumber(filename, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
             return -1
@@ -243,30 +303,51 @@ class FSShell():
         if data == -1:
             print("Error: " + errorcode)
             return -1
+
+        self.RawBlocks.Release()
+
         return 0
 
     # implements rm
     def rm(self, filename):
-        i, errorcode = self.FileOperationsObject.Unlink(self.cwd, filename)
+
+        self.RawBlocks.Acquire()
+
+        i = self.FileOperationsObject.Unlink(self.cwd, filename)
         if i == -1:
-            print("Error: " + errorcode + "\n")
+            print("Error: " + i + "\n")
             return -1
+        
+        self.RawBlocks.Release()
+
         return 0
 
     # implements hard link
     def lnh(self, target, name):
-        i, errorcode = self.AbsolutePathObject.Link(target, name, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.Link(target, name, self.cwd)
         if i == -1:
-            print("Error: " + errorcode)
+            print("Error: " + i)
             return -1
+    
+        self.RawBlocks.Release()
+
         return 0
 
     # implements soft link
     def lns(self, target, name):
-        i, errorcode = self.AbsolutePathObject.Symlink(target, name, self.cwd)
+
+        self.RawBlocks.Acquire()
+
+        i = self.AbsolutePathObject.Symlink(target, name, self.cwd)
         if i == -1:
-            print("Error: " + errorcode)
+            print("Error: " + i)
             return -1
+        
+        self.RawBlocks.Release()
+
         return 0
 
     ## Main interpreter loop

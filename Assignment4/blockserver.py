@@ -89,7 +89,7 @@ if __name__ == "__main__":
     result = RawBlocks.block[block_number]
     # RawBlocks.block[block_number] = RSM_LOCKED
     RawBlocks.block[block_number] = bytearray(RSM_LOCKED.ljust(BLOCK_SIZE,b'\x01'))
-    RawBlocks.Sleep()
+    # RawBlocks.Sleep()
     return result
 
   server.register_function(RSM)

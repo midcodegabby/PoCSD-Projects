@@ -26,6 +26,41 @@ class DiskBlocks():
         self.block_server = xmlrpc.client.ServerProxy(server_url, use_builtin_types=True)
         socket.setdefaulttimeout(fsconfig.SOCKET_TIMEOUT)
 
+    # RSM (read and set memory) method: this method returns the data in the lock block, and sets the 
+    # lock block (the last block) to 1
+    def RSM(self):
+        # create a byte array to store the lock in:
+        lock_write = bytearray(fsconfig.BLOCK_SIZE)
+        lock_write[0] = 1 
+
+        # read the value in the lock
+        lock_read = self.Get(fsconfig.TOTAL_NUM_BLOCKS - 1)
+
+        # put a 1 (locked) into the lock_block
+        self.Put((fsconfig.TOTAL_NUM_BLOCKS - 1), lock_write)
+
+        return lock_read[0]
+
+    ## Acquire method
+    def Acquire(self): 
+        # use RSM
+        lock = self.RSM()
+
+        # loop until lock[0] is 0 (unlocked)
+        while (lock == 1):
+            lock = self.RSM()
+        
+        return 0
+
+    ## Release method
+    def Release(self):
+        # create a byte array to store the lock (0) in:
+        unlock = bytearray(fsconfig.BLOCK_SIZE) 
+
+        self.Put((fsconfig.TOTAL_NUM_BLOCKS - 1), unlock)
+
+        return 0
+
     ## Put: interface to write a raw block of data to the block indexed by block number
     ## Blocks are padded with zeroes up to BLOCK_SIZE
 
@@ -54,7 +89,7 @@ class DiskBlocks():
                 
                 # exception handling for the 5 second socket timout exception:
                 except socket.timeout:
-                    print("SERVER_TIMED_OUT") #print error message
+                    print("SERVER_TIMED_OUT") # print error message
                     time.sleep(fsconfig.RETRY_INTERVAL) # sleep for RETRY_INTERVAL (10s)
 
                 # handle the case where no timeout occurs:
