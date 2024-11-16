@@ -37,6 +37,7 @@ class FSShell():
 
         if i < 0 or i >= fsconfig.MAX_NUM_INODES:
             print('Error: inode number ' + str(i) + ' not in valid range [0, ' + str(fsconfig.MAX_NUM_INODES - 1) + ']')
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
@@ -73,6 +74,7 @@ class FSShell():
 
         if n < 0 or n >= fsconfig.TOTAL_NUM_BLOCKS:
             print('Error: block number ' + str(n) + ' not in valid range [0, ' + str(fsconfig.TOTAL_NUM_BLOCKS - 1) + ']')
+            self.RawBlocks.Release()
             return -1
         print('Block (showing any string snippets in block the block) [' + str(n) + '] : \n' + str(
             (self.RawBlocks.Get(n).decode(encoding='UTF-8', errors='ignore'))))
@@ -104,12 +106,15 @@ class FSShell():
 
         if n < 0 or n >= fsconfig.TOTAL_NUM_BLOCKS:
             print('Error: block number ' + str(n) + ' not in valid range [0, ' + str(fsconfig.TOTAL_NUM_BLOCKS - 1) + ']')
+            self.RawBlocks.Release()
             return -1
         if start < 0 or start >= fsconfig.BLOCK_SIZE:
             print('Error: start ' + str(start) + 'not in valid range [0, ' + str(fsconfig.BLOCK_SIZE - 1) + ']')
+            self.RawBlocks.Release()
             return -1
         if end < 0 or end >= fsconfig.BLOCK_SIZE or end <= start:
             print('Error: end ' + str(end) + 'not in valid range [0, ' + str(fsconfig.BLOCK_SIZE - 1) + ']')
+            self.RawBlocks.Release()
             return -1
 
         wholeblock = self.RawBlocks.Get(n)
@@ -128,11 +133,13 @@ class FSShell():
         i = self.AbsolutePathObject.GeneralPathToInodeNumber(dir, self.cwd)
         if i == -1:
             print("Error: not found\n")
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
         if inobj.inode.type != fsconfig.INODE_TYPE_DIR:
             print("Error: not a directory\n")
+            self.RawBlocks.Release()
             return -1
         self.cwd = i
     
@@ -184,15 +191,18 @@ class FSShell():
         i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
         if inobj.inode.type != fsconfig.INODE_TYPE_FILE:
             print("Error: not a file\n")
+            self.RawBlocks.Release()
             return -1
         data, errorcode = self.FileOperationsObject.Read(i, 0, fsconfig.MAX_FILE_SIZE)
         if data == -1:
             print("Error: " + errorcode)
+            self.RawBlocks.Release()
             return -1
         print(data.decode())
 
@@ -208,6 +218,7 @@ class FSShell():
         i, errorcode = self.FileOperationsObject.Create(self.cwd, dir, fsconfig.INODE_TYPE_DIR)
         if i == -1:
             print("Error: " + errorcode + "\n")
+            self.RawBlocks.Release()
             return -1
         
         self.RawBlocks.Release()
@@ -222,6 +233,7 @@ class FSShell():
         i, errorcode = self.FileOperationsObject.Create(self.cwd, file, fsconfig.INODE_TYPE_FILE)
         if i == -1:
             print("Error: " + errorcode + "\n")
+            self.RawBlocks.Release()
             return -1
         
         self.RawBlocks.Release()
@@ -236,15 +248,18 @@ class FSShell():
         i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
         if inobj.inode.type != fsconfig.INODE_TYPE_FILE:
             print("Error: not a file\n")
+            self.RawBlocks.Release()
             return -1
         written, errorcode = self.FileOperationsObject.Write(i, inobj.inode.size, bytearray(string, "utf-8"))
         if written == -1:
             print("Error: " + errorcode)
+            self.RawBlocks.Release()
             return -1
         print("Successfully appended " + str(written) + " bytes.")
 
@@ -270,15 +285,18 @@ class FSShell():
         i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
         if inobj.inode.type != fsconfig.INODE_TYPE_FILE:
             print("Error: not a file\n")
+            self.RawBlocks.Release()
             return -1
         data, errorcode = self.FileOperationsObject.Slice(i, offset, count)
         if data == -1:
             print("Error: " + errorcode)
+            self.RawBlocks.Release()
             return -1
         
         self.RawBlocks.Release()
@@ -293,15 +311,18 @@ class FSShell():
         i = self.AbsolutePathObject.GeneralPathToInodeNumber(filename, self.cwd)
         if i == -1:
             print("Error: not found\n")
+            self.RawBlocks.Release()
             return -1
         inobj = InodeNumber(i)
         inobj.InodeNumberToInode(self.RawBlocks)
         if inobj.inode.type != fsconfig.INODE_TYPE_FILE:
             print("Error: not a file\n")
+            self.RawBlocks.Release()
             return -1
         data, errorcode = self.FileOperationsObject.Mirror(i)
         if data == -1:
             print("Error: " + errorcode)
+            self.RawBlocks.Release()
             return -1
 
         self.RawBlocks.Release()
@@ -316,6 +337,7 @@ class FSShell():
         i = self.FileOperationsObject.Unlink(self.cwd, filename)
         if i == -1:
             print("Error: " + i + "\n")
+            self.RawBlocks.Release()
             return -1
         
         self.RawBlocks.Release()
@@ -330,6 +352,7 @@ class FSShell():
         i = self.AbsolutePathObject.Link(target, name, self.cwd)
         if i == -1:
             print("Error: " + i)
+            self.RawBlocks.Release()
             return -1
     
         self.RawBlocks.Release()
@@ -344,6 +367,7 @@ class FSShell():
         i = self.AbsolutePathObject.Symlink(target, name, self.cwd)
         if i == -1:
             print("Error: " + i)
+            self.RawBlocks.Release()
             return -1
         
         self.RawBlocks.Release()

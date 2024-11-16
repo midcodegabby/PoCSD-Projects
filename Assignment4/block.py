@@ -29,15 +29,9 @@ class DiskBlocks():
     # RSM (read and set memory) method: this method returns the data in the lock block, and sets the 
     # lock block (the last block) to 1
     def RSM(self):
-        # create a byte array to store the lock in:
-        lock_write = bytearray(fsconfig.BLOCK_SIZE)
-        lock_write[0] = 1 
 
-        # read the value in the lock
-        lock_read = self.Get(fsconfig.TOTAL_NUM_BLOCKS - 1)
-
-        # put a 1 (locked) into the lock_block
-        self.Put((fsconfig.TOTAL_NUM_BLOCKS - 1), lock_write)
+        #use atomic RSM on server side
+        lock_read = self.block_server.RSM(fsconfig.TOTAL_NUM_BLOCKS - 1)
 
         return lock_read[0]
 
