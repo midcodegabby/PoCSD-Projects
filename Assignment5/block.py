@@ -26,6 +26,33 @@ class DiskBlocks():
         self.block_server = xmlrpc.client.ServerProxy(server_url, use_builtin_types=True)
         socket.setdefaulttimeout(fsconfig.SOCKET_TIMEOUT)
 
+    # Method to check and validate client cache vs server cache
+    def CheckAndInvalidateCache(self):
+        # get current CID in server; the CID is stored in server_CID[0]
+        server_CID = self.get(fsconfig.TOTAL_NUM_BLOCKS - 2)
+
+        # handle case where cache is valid
+        if fsconfig.CID == server_CID[0]:
+            return 0
+
+        # handle case where cache is invalid
+        else:
+            print("CACHE_INVALIDATED")
+
+            # create block to store CID
+            new_CID = bytearray(fsconfig.BLOCK_SIZE)
+            new_CID[0] = fsconfig.CID
+
+            # store the CID into the server
+            self.put((fsconfig.TOTAL_NUM_BLOCKS - 2), new_CID)
+
+            # update the cache on the client side
+
+            
+            
+            return 0
+
+
     # RSM (read and set memory) method: this method returns the data in the lock block, and sets the 
     # lock block (the last block) to 1
     def RSM(self):
@@ -67,7 +94,7 @@ class DiskBlocks():
             quit()
 
         if block_number in range(0, fsconfig.TOTAL_NUM_BLOCKS):
-            # ljust does the padding with zeros
+            # just does the padding with zeros
             putdata = bytearray(block_data.ljust(fsconfig.BLOCK_SIZE, b'\x00'))
             # Write block
             # commenting this out as the request now goes to the server
@@ -79,7 +106,8 @@ class DiskBlocks():
             for i in range(2): 
                 # implement try/except stuff for at-least-once semantics
                 try:
-                    ret = self.block_server.Put(block_number, putdata)
+                    ret = self.block_server.Put(block_number, putdata) #RPC
+                    # Cache
                 
                 # exception handling for the 5 second socket timout exception:
                 except socket.timeout:
@@ -88,6 +116,7 @@ class DiskBlocks():
 
                 # handle the case where no timeout occurs:
                 else:
+                    print("CACHE_WRITE_THROUGH " + str(block_number)) 
                     return 0
 
             if ret == -1:
